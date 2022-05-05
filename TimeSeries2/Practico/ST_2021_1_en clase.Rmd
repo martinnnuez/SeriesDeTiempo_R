@@ -1,0 +1,352 @@
+---
+title: "Series de Tiempo"
+author:
+- Silvia María Ojeda
+- Sergio Martín Buzzi
+date: "21 de septiembre de 2021"
+output: 
+  html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Temas
+
+> 1. Retardos y diferencias
+> 2. Creación de un objeto ts
+> 3. Carga de una base de datos
+> 4. Simulación de un ruido blanco
+> 5. Función de autocorrelación simple muestral
+> 6. Simulación de un proceso MA(1)
+> 7. Simulación de un proceso MA(2)
+
+
+# Retardos y diferencias
+
+## Retardos 1 (lag)
+
+Simulamos la serie e
+```{r}
+ # simulamos la serie e
+e <- 1:5
+ # vemos su retardo, usando la funcion lag
+lag(e)
+# unimos la serie original y su retardo
+cbind(e,lag(e))
+```
+Si e va de 1 a 5 lag va de 1  a 4, el primero seria faltante y luego los otros de 1 a 4, esto es lo que esperaria. Pero no es lo que obtengo.
+
+```{r}
+ # gráfico de la serie contra su retardo
+plot(lag(e),e)
+```
+ Obtenemos esto y no es lo que quiero en un grafico de la serie contra sus retardos. La funcion lag no hace exactamente lo que se espera. 
+
+no es lo esperado!
+
+## Retardos 2 (zlag)
+ Otra opcion es biblioteca TSA
+```{r}
+library(TSA) #carga de biblioteca TSA
+#  si no está instalada hacer: install.packages("TSA")
+
+zlag(e, d=1)# zlag(e) no hace falta el d=1 nose pq lo pone.
+# El d es el orden del retardo. 1,2,3... cuantos lugares me voy para atras. 
+cbind(e,zlag(e))
+```
+ Esto es lo que intuitivamente se esperaria. Una mejor opcion. 
+ 
+```{r}
+plot(zlag(e), e)
+```
+
+Este gráfico si es correcto.
+
+## Retardos 3 (embed)
+
+```{r}
+embed(e,2) # veamos como trabaja la función embed
+
+embed(e,4)
+# Retardo me voy esa cantidad de valores para atras. 
+# El orden del retardo me dice cuantos lugares me voy para atras, y me elimina los otros valores. 
+
+embed(e,1)# serie original
+embed(e,2)# pierdo la primera fila
+embed(e,3)# se agrega segundo retardo 
+embed(e,4)# 
+```
+
+La función embed permite tomar retardo y la vez eliminar las filas en la que se generan faltantes.
+
+Se recorto la fila que tiene faltante para el lag, la primera fila que antes tenia el NA la elimina. 
+
+Cuando se toma lag se pierde un dato.
+
+Veo el retardo de X1,X2,...,Xk.
+
+embed(e,4)
+Veo 4 lags primer columna, serie y luego los tres primeros retardos. 
+
+
+```{r}
+ # serie original (dropeando un dato)
+embed(e,2)[,1]
+embed(e,2)[,2]
+# primer retardo
+cbind(embed(e,2)[,1], embed(e,2)[,2]) # serie original vs primer retardo
+# Hacemos esto para que queden de la misma cnatidad de datos. 
+plot(embed(e,2)[,2], embed(e,2)[,1]) 
+```
+
+También es lo que esperábamos.
+
+# Diferencia 1 (usando diff)
+
+```{r}
+diff(e) # funciona bien si trabajo con la serie sola
+cbind(e, diff(e)) # no funciona del todo bien
+```
+dif(e), es lo que yo espero, es la diferencia entre ellos, 4 numeros. Esta perfecto.
+
+Pero cuando hago el cbind() me agrega un 1 mas, porque me falta el dato faltante para que quede al principio. 
+```{r}
+cbind(e[-1], diff(e)) # ok, recordar eliminar la primera fila para que sacar ese dato que le ponia el 1 que no correspondia porque deberia ser un faltante. 
+plot(e[-1], diff(e))
+```
+Vemos que la diferencia entre los valores de la serie es siempre la misma. 
+
+# Diferencia 2 (usando embed)
+
+```{r}
+d_e <- embed(e, 2)[,1] - embed(e,2)[,2] # La diferencia de los datos con retardo = 1, la seria arranca un valor mas adelante, lag = 1.
+cbind(embed(e,2)[,1], d_e)
+plot(embed(e,2)[,1], d_e)
+
+```
+
+El recomienda como uso practico el zlag. 
+Y tener en cuenta que para las diferencias hay que dropiar uno. 
+
+# Creación de un objeto ts
+
+Dada una serie ¿Cómo la definimos como serie de tiempo?
+
+```{r}
+e <- 1:20
+# Ejemplo: serie trimestral que inicia en 2do trimestre de 1995
+# zoo. Otra biblioteca que se usa mucho. Para cosas mas complejas combiene pasar a zoo, cuando quiere trabajar con dias o fechas. 
+
+#definimos como serie de tiempo
+ts_e <- ts(e, freq = 4, start = c(1995,2))
+# freq = 4 indica que es trimestral  
+# start = c(1995,2) 1995, segundo trismestre
+# año y cual trimeste del año.
+ts_e
+plot(ts_e )
+class(ts_e)
+```
+
+# Carga de una base de datos
+
+```{r}
+# install.packages("readxl")
+library(readxl)
+GDP_anual <- read_excel("GDP_anual.xlsx")
+GDP_anual
+
+```
+
+```{r}
+# Definimos GDP_anual[,2] como serie de tiempo anual que inicia en 1810
+GDP_ts <- ts(GDP_anual[,2],start=1810)
+plot(GDP_ts)
+# Es una serie anual, no hace falta indicar la frecuencia, pq es anual la serie, no hay datos tomados por año. 
+
+# Transforma usando logaritmo y toma diferencia entre los datos. 
+plot(diff(log(GDP_ts)))
+# Tomar las dos cosas a la vez es equivalente a calcular la tasa de crecimiento. 
+
+length(GDP_ts) # longitud 205
+length(diff(GDP_ts)) # longitud 204, me devuelve la diferencia que hay ente ellos. 
+```
+La tasa de crecimiento
+$$tc(x)= ln(x_t)-ln(x_{t-1}) = \frac{y_{t}-y_{t-1}}{y_{t-1}}$$
+Tremenda forma de poner formulas!!!
+
+# Simulación de un ruido blanco
+```{r}
+# fijación de semilla para tener las mismas simulaciones
+set.seed(1234)
+n = 200
+e <-rnorm(n, mean=0 , sd=1)  # no necesariamente debe ser normal
+# media cero
+# varianza constante cualquier numero pero finito
+# corrleacion, en rnorm son todas generacion independientes, entonces no estan correlacionados. 
+plot(e, type="o", col="blue",main="Ruido blanco", xlab = " ")
+```
+* rnorm genera variables independietnes por lo tanto se cumple la tercera condicion de no correlacionados, pq independencia implica no correlacion. 
+ 
+```{r}
+plot(zlag(e), e) # grafico de serie contra su primer retardo
+plot(zlag(e,2), e) # graficos con otros retardos
+plot(zlag(e,3), e)
+plot(zlag(e,4), e)
+```
+
+Es lo esperado.
+
+De que sirve ver estos graficos?.
+Sirve para ver correlaciones. Anticipo de cual es la funcion de orden para un AR. 
+
+# Función de autocorrelación simple muestral
+
+Podemos construir artesanalmente la FAS muestral de orden uno. 
+En el libro de Leiva se puede ver la sección 1.3 sobre la estimación de las características de una serie de tiempo estacionaria. La estimación de las autocorrelaciones está desarrollada en la página 42.
+
+$$\hat{\rho_k} = \frac{\hat{\gamma_k}}{\hat{\gamma_0}} = \frac{\sum_{i=1}^{n-k} (X_t - \bar{X_n})(X_{t+k} - \bar{X_n}) }{\sum_{i=1}^{n} (X_t - \bar{X_n})^2}$$
+para $k =  0, \pm 1, \pm 2, ..., \pm (n-1) $
+
+Entonces la FAS muestral de orden 1 es:
+
+$$\hat{\rho_1} = \frac{\hat{\gamma_1}}{\hat{\gamma_0}} = \frac{\sum_{i=1}^{n-1} (X_t - \bar{X_n})(X_{t-1} - \bar{X_n}) }{\sum_{i=1}^{n} (X_t - \bar{X_n})^2}$$
+ Pone menos k en vez de mas k porque correlacion es bidireccional, puedo mover el indice tranquilamente si k mantiene constante. 
+ 
+ Esta es la correlacion muestral, no mesclar con la del proceso estocastico que seria la teorica. 
+ 
+En R:
+
+```{r}
+# Lo hacemos con el ruido blanco: 
+numerador =  sum((embed(e,2)[,1]-mean(e)) * (embed(e,2)[,2]-mean(e)))
+
+denominador = sum((e-mean(e))^2) # Aca no perdemos el dato que si arriba
+
+(numerador/denominador)
+
+length(embed(e,2)[,2])
+length(e)
+# como quedan de distinta longitud usamos directamente las columnas de embed 1 y 2
+```
+
+Comparemos con la función acf
+
+```{r}
+acf(e) #gráfico
+acf(e, plot = FALSE)$acf[1] # da igual que arriba perfecto 0.12
+str(acf(e, plot = FALSE)) # Asi puedo ver todo lo que tiene adentro.
+
+# STR sirve para ver que hay en el objeto muy bueno!. 
+
+acf(e, plot = FALSE)$acf # Aca estan las correlaciones en distintos ordenes. Si pongo 1 devuelve la primer componente. 
+
+
+
+```
+Comparando con el correlograma da perfecto. 0.12
+
+En el grafico todas las barras deberian dar adentro, lo que refuerza que la autocorrelacion es 0, alguna se escapa pero esta bien. 
+
+Buena forma para verificar que es un ruido blanco.
+
+
+# Simulación de una serie basada en un proceso MA(1)
+
+$$ X_{t} = \varepsilon _{t} + 0.8 \ \varepsilon_{t-1}$$
+
+```{r}
+# Simulemos este MA(1) partiendo del ruido blanco e ya generado
+# Mi forma
+ma1 <- (embed(e,2)[,1] + (embed(e,2)[,2]*0.8))
+ma1 <- c(e[1],ma1)
+x <- ma1
+acf((x))
+
+# Forma de l rpofe
+ma1 <-e
+for (i in 2:n){
+  ma1[i]<- e[i]+ 0.8 * e[i-1]
+}
+acf(ma1)
+```
+
+Examinamos la serie simulada
+
+```{r}
+plot(x, type="o")
+```
+Se ve un poco mas de patron pero dificil verlo aca.
+```{r}
+plot(zlag(x), x)
+plot(zlag(x,2), x)
+plot(zlag(x,3), x)
+plot(zlag(x,4), x)
+```
+* Primer corrleograma parece pendiente positiva, luego ya no se ve mas pendiente. 
+
+* Y vemos que el primer valor del acf[1] es 0.54 y luego se reducen, entonces vemos esa primera correlacion. 
+
+```{r}
+acf(x)
+fas <- acf(x)
+fas$acf
+
+fas$acf[1]
+```
+
+
+# Simulación de una serie basada en un proceso MA(2)
+
+$$ X_{t} = \varepsilon _{t} + 0.8 \ \varepsilon_{t-1} - 0.5 \ \varepsilon_{t-2}$$
+
+A trabajar...
+
+```{r}
+# Forma profe
+ma2 <-e
+for (i in 3:n){
+  ma2[i]<- e[i]+ 0.8 * e[i-1] - 0.5 * e[i-2] 
+}
+
+acf(ma2)
+x = ma2
+
+# Mi forma:
+ma2 <- (embed(e,3)[,1] + (embed(e,3)[,2]*0.8) + (embed(e,3)[,3]*-0.5))
+ma2 <- c(e[1],e[2],ma2)
+x <- ma2
+acf((x))
+```
+
+```{r}
+plot(x)
+```
+
+```{r}
+plot(zlag(x), x)
+plot(zlag(x,2), x)
+plot(zlag(x,3), x)
+plot(zlag(x,4), x)
+```
+
+```{r}
+acf(x)
+acf(x, plot=FALSE)$acf
+
+```
+ * Vemos que las correlaciones son 0.3 y -0.2, positiva y negativa. 
+ 
+¿Qué patrones esperamos observar en el caso de un proceso MA(q)?
+
+Esperamos coeficientes de correlacion grandes hasta q. 
+
+# Tarea
+
+Simular un proceso con la siguiente estructura:
+
+$$ X_{t} = 0.8 \ X_{t-1} + \varepsilon _{t}$$
+Luego ver los graficos de la serie contra cada uno de los 4 primeros retardos y graficar la FAS muestral.

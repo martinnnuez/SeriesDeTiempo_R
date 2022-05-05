@@ -1,0 +1,134 @@
+---
+title: "Procesos no estacionarios"
+author: "Sergio Martín Buzzi"
+date: "10/26/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# carga de biblioteca TSA
+library(TSA)
+# simulación de ruido blanco
+set.seed(1234) 
+n = 1000
+e <- rnorm(n, mean = 0, sd = 1) # no necesariamente debe ser normal
+plot(e, type="o", col="blue",main="Ruido blanco", xlab = " ")
+
+```
+
+
+## Proceso AR(1) con coeficiente 7
+
+```{r}
+# en vez de usar 1000 datos, solo tomaremos 200
+ar1_7 <- e[1:200]
+for (i in 2:200) {
+  ar1_7[i] <- 7 * ar1_7[i-1] + e[i]
+}
+x <- ar1_7
+```
+
+```{r}
+plot(x, type="o", col="blue")
+x[1:20]
+```
+
+Recordando el calculo manual de la FAS muestral:
+
+```{r}
+sum((embed(x, 2)[,1]-mean(x))*(embed(x, 2)[,2]-mean(x)))/ sum((x - mean(x)) ^2)  
+```
+
+ups!
+Veamos los últimos valores de la serie:
+
+```{r}
+tail(x)
+```
+
+
+## Caminata aleatoria
+
+$$X_t = X_{t-1} + e_t$$
+
+```{r}
+ca <- e
+for (i in 2:n) {
+  ca[i] <- ca[i-1] + e[i]
+}
+x <- ca
+```
+
+```{r}
+plot(x, type="l", col="blue")
+
+```
+
+```{r}
+plot(zlag(x), x)
+plot(zlag(x,2), x)
+plot(zlag(x,3), x)
+plot(zlag(x,4), x)
+acf(x)
+head(acf(x, plot = F)$acf)
+```
+
+# Box Jenkins (caso caminata aleatoria)
+
+```{r}
+fit1 <- arima(ca, order=c(p=0, d=1, q=0), include.mean = F)
+fit1
+
+res1 <- fit1$residuals
+plot(res1)
+acf(res1)
+pacf(res1)
+
+```
+
+
+
+# Memoria larga
+
+$$X_t = 0.95 \ X_{t-1} + e_t$$
+
+```{r}
+ml <- e
+for (i in 2:n) {
+  ml[i] <- 0.95*ml[i-1] + e[i]
+}
+x <- ml
+```
+
+```{r}
+plot(x, type="o", col="blue")
+
+```
+
+```{r}
+plot(zlag(x), x)
+plot(zlag(x,2), x)
+plot(zlag(x,3), x)
+plot(zlag(x,4), x)
+acf(x)
+head(acf(x, plot = F)$acf)
+```
+
+# Proceso con tendencia determinística
+
+```{r}
+tiempo <- seq_along(e)
+head(tiempo)
+td <- 0.7*tiempo + 100*e
+plot(td)
+```
+
+```{r}
+plot(resid(lm(td ~ -1 +tiempo)))
+
+```
+

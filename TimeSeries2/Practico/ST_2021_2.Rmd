@@ -1,0 +1,539 @@
+---
+title: "Series de Tiempo"
+author:
+- Silvia María Ojeda
+- Sergio Martín Buzzi
+date: "23 de septiembre de 2021"
+output: 
+  html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Procesos AR
+## Tarea: AR(1) con coeficiente positivo
+Simular un proceso con la siguiente estructura:
+
+$$ X_{t} = 0.8 \ X_{t-1} + \varepsilon _{t}$$
+Luego ver los gráficos de la serie contra cada uno de los 4 primeros retardos y graficar la FAS muestral.
+
+```{r}
+# carga de biblioteca TSA
+library(TSA)
+# simulación de ruido blanco
+set.seed(1234) 
+n = 1000
+e <- rnorm(n, mean = 0, sd = 1) # no necesariamente debe ser normal
+plot(e, type="o", col="blue",main="Ruido blanco", xlab = " ")
+
+```
+* Aca ya no anda lo de embed porque como saco retardo de X si no tengo X.
+* Justamente estamos generando x.
+* Necesito un valor incial para dar cominezo a la serie. 
+* Necesito un arranque y un for.
+* Necesito el valor anterior para crear el siguiente.
+
+
+```{r}
+ar1 <- e
+for (i in 2:n) {
+  ar1[i] <- 0.8 * ar1[i-1] + e[i]
+  ar1
+}
+x <- ar1
+```
+
+* Simulacion de un AR 1 con coeficiente 0.8.
+```{r}
+plot(x, type="o", col="blue")
+
+```
+* Grafico de la serie contra los retardos para ver las correlaciones.
+* La primera muy marcada y luego se va a haciendo mas debil .
+```{r}
+plot(zlag(x), x)
+plot(zlag(x,2), x)
+plot(zlag(x,3), x)
+plot(zlag(x,4), x)
+acf(x)
+head(acf(x, plot = F)$acf)
+```
+* La acf nos resume todos los graficos anteriores.
+* En el caso de los MA el primer valor no es el coefieciente es otro calculo. En cambio en los AR el primero es el valor 0.8 del coeficiente. 
+
+* Recordar del teorico qeu la autocorrleacion es el coeficiente elevado al k numero de orden, entonces va bajando lentamente. Si fuese 1 no bajaria y 0.99 baja muy lento. 
+
+* En el AR(1) la funcion de autocorrelacion simple decae lentamente, **suave**.
+
+## Proceso AR(1) con coeficiente autorregresivo negativo
+
+$$ X_{t} = - \ 0.7 \ X_{t-1} + \varepsilon _{t}$$
+
+```{r}
+ar1_neg <- e
+for (i in 2:n) {
+  ar1_neg[i] <- - 0.7 * ar1_neg[i-1] + e[i]
+  ar1_neg
+}
+x <- ar1_neg
+
+```
+
+```{r}
+plot(x, type="o", col="blue")
+
+```
+* Es mas un ida y vuelta, subo y bajo, subo y bajo. Coeficientes negativos tienden a generar comportamientos oscilatorios.
+
+```{r}
+plot(zlag(x), x)
+plot(zlag(x,2), x)
+plot(zlag(x,3), x)
+plot(zlag(x,4), x)
+acf(x)
+head(acf(x, plot = F)$acf)
+```
+
+* Vemos como da cada vez mas suave el coeficietne, negativo y positivo, como consecuencia de que eleva el indice a numero impar y luego par, cunado es par es positivo e impar negativo. El primero como es un AR es muy cercano a -0.7.
+
+* Coeficente negativo tenemos fas con oscilaciones, pero tambien se respeta el decaimineto suave. Decaimiento suave de la funcion de autocorrelacion simple.
+
+Entonces vamos con un AR(2) y vemos si el decaiminento es suave.
+
+## Proceso AR(2)
+
+* Tenemos 2 phi. phi1 y phi 1, (0.8,0.6)
+
+$$ X_{t} = 0.8 \ X_{t-1} - 0.6 \ X_{t-2} + \varepsilon _{t}$$
+```{r}
+ar2 <- e
+for (i in 3:n) {
+  ar2[i] <- 0.8 * ar2[i-1] -  0.6 * ar2[i-2] + e[i]
+  ar2
+}
+x <- ar2
+
+```
+
+* El AR 2 mira 2 pasados hacia atraz, por eso partimos del 3 para generar. 
+```{r}
+plot(x, type="o", col="blue")
+
+```
+
+```{r}
+plot(zlag(x), x)
+plot(zlag(x,2), x)
+plot(zlag(x,3), x)
+plot(zlag(x,4), x)
+acf(x, lag.max= 15)
+head(acf(x, plot = F)$acf)
+```
+
+* El primero positivo, segundo tercero y cuarto negativo, cuarto quinto y sexto positivo. No es siempre asi, esto es funcion de cuanto valen los parametros, como hay un negativo dando vuelta se genera algun tipo de oscilacion. Lo importante de ver es el decaimiento. El segundo es mas chico en valor absoluto que el tercero. Graficando la union de los valores vemos que tiende a caer suavemente.
+
+* AR 1 y 2 comparte decaiminetos suaves y exponenciales. 
+
+¿Cómo distinguir un AR(1) de un AR(2)?
+
+En base a la fas no parece que pueda distinguir los AR 1,2,3. Entonces cual herramienta puedo usar?
+
+
+# La función de autocorrelación parcial FAP muestral
+
+Se plantea una regresión con tantos retardos como el orden de autocorrelación parcial que se quiere estimar. El último coeficiente de la regresión es una estimación de la FAP para ese orden.
+
+Los MA son distinguibles por la fas. 
+En los AR todos tienen decaimineto suave por lo tanto, la fas no sirve entonces tenemos que hacer uso de la fas. 
+
+* AR(1): Xt-2 impacta en Xt pero de forma indirecta.
+* AR(2): Xt-2 impacta en Xt de forma directa e indirectamente por Xt-1 tambien del Xt-2.
+
+Entonces hacemos uso de la funcion de autocorrelacion PARCIAL. 
+
+Permite eliminar el efecto de la Xt-1 y quedarnos solo con el impacto directo del Xt-2 en Xt. 
+
+Vamos a hacerlo a traves del planteo de regresiones lineales. Podemos ver el impacto aislando los intemedios.
+
+## Ejemplo AR(1)
+
+```{r}
+lm(ar1~ -1 + zlag(ar1)) # Vemos impacto directo del primer retardo.
+lm(ar1~ -1 + zlag(ar1) + zlag(ar1, 2)) # Vemos impacto directo del retardo 2 cuando analizamos solamente el segundo coeficiente
+lm(ar1~ -1 + zlag(ar1) + zlag(ar1, 2) + zlag(ar1, 3)) # Vemos solo el coeficiente del tercero.
+
+```
+* Primer caso 0.8023
+* alfa11 = correspondiente regresion 1 lag y coeficente 1
+
+* segundo caso: 
+* alfa22 = regresion 2 lags y coeficiente 2 = -0.03093
+
+* Tercer caso:
+* alfa33 = regresion 3 lags y 3er coef = 0.02541.
+
+
+```{r}
+pacf(ar1)
+head(pacf(ar1, plot= F)$acf)
+```
+
+* Los coeficientes de correlacion parcial obtenidos son estos numeros, los obtenemos directamente, con esto nos damos cuenta de que se trata de un AR(1).
+
+* Si se sale de las bandas en el grafico de fap entonces es significativo y ahi tomamos que entonces se trata de ese orden. 
+
+* Con ruido blanco todo queda dentro del ruido blanco. Justamente las bandas de confianza provienen de un proceso de ruido blanco, por eso le pediamos que todos los coeficientes queden dentro en este proceso. Si el coeficiente se sale de las bandas entonces es singificativo y es distinto de 0. Y ahi tomamos como que es un valor distinto de 0 y determina otro orden. 
+
+Notar que el coeficiente de la primer regresión es distinto de cero y los últimos coeficientes de las siguientes regresiones son cercanos a cero.
+
+Esto se traduce en que en el gráfico de la PAC muestral solo es distinto de cero el primer componente.
+
+
+## Ejemplo AR(2)
+
+```{r}
+lm(ar2 ~ -1 + zlag(ar2)) 
+lm(ar2 ~ -1 + zlag(ar2) + zlag(ar2, 2))
+lm(ar2 ~ -1 + zlag(ar2) + zlag(ar2, 2) + zlag(ar2, 3))
+
+```
+A traves de la fap determinamos el orden del AR:
+
+* alfa11 = 0.5 SIGNIFICATIVO
+* alfa22 = -0.6 SIGNIFICATIVO
+* alfa33 = -0.04 No significativo, entonces se trata de un AR(2).
+
+El fundamento de que nos permita indicar el orden del proceso, es que cada uno de estos valores de alfa nos permite cuantificar el impacto directo del proceso retardato Xt-k en Xt, eliminando todos los indirectos, y si este es significativo entonces se trata de un proceso hasta ese orden. 
+
+* Con la regresion eliminamos impactos indirectos y solo dejamos los impactos directos y si ese imapcto directo es significativo o grande (dentro de las bandas), entonces se trata de un proceso que llega hasta ese orden. 
+
+El que no da singificativo, como Xt-3 solo impacta de forma indirecta, no de forma directa, entonces no se trata de ese orden. 
+
+* FAS da orden q.
+* FAP da orden p. 
+
+¿Entonces que esperamos ver en la FAP muestral?
+
+```{r}
+pacf(ar2, lag.max= 15)
+head(pacf(ar2, plot= F)$acf)
+
+```
+* La funcion de autocorrelacion parcial muy util para distinguir entre los AR, pero con los MA que pasa?.
+
+## Ejemplo MA(1)
+
+```{r}
+ma1 <- e
+ma1[1] <- e[1]
+for (i in 2:n) {
+  ma1[i] <- e[i] + 0.8 * e[i-1]
+  ma1
+}
+x <- ma1
+```
+
+```{r}
+lm(ma1 ~ -1 + zlag(ma1)) 
+lm(ma1 ~ -1 + zlag(ma1) + zlag(ma1, 2))
+lm(ma1 ~ -1 + zlag(ma1) + zlag(ma1, 2) + zlag(ma1, 3))
+```
+
+* Los alfa i i del impacto directo, dan valores singificativos en todos los casos. Entonces no sirve para discriminar orden q de los MA. 
+
+```{r}
+pacf(ma1, lag.max= 15)
+head(pacf(ma1, plot= F)$acf)
+```
+* La parcial en los MA cae en forma suave. 
+
+* La parcial en los AR cae luego del orden del proceso. 
+
+# Como caen (importante): 
+
+* En el AR fas cae lentamente, fap (parcial) cae rapido (nos informa sobre p). AR(p)
+* En el MA fas cae rapido (nos infomra sobre q), fap (parcial) cae lentamente. MA(q)
+
+Simple para detectar MA pero no AR.
+En cambio la parcial para detectar AR pero no MA. 
+
+Estan como espejados.
+
+# Resumen decaimiento:
+AR(p): FAP rapido (determia p), fas lento.
+MA(q): FAS rapido (determina q), fap lento.
+ARMA(p,q): ambas con decaimiento lento. Pero no sabemos quien es p y q.
+
+¿Se pueden combinar los AR y los MA?
+
+# Desafío: simular un modelo con parte AR y parte MA
+
+```{r}
+
+# En la simulacion primera parte AR y luego MA.
+# Esto seria un arma11
+arma11 <-e
+
+for (i in 2:n){
+  arma11[i]<- 0.7*arma11[i-1] + e[i] + 0.8 * e[i-1]
+}
+
+x <-arma11
+
+```
+* Preguntan donde esta la media. Puedo estar modelando con mu ya restada o agregar un delta. 
+
+```{r}
+acf(x, lag.max=15)
+pacf(x, lag.max=15)
+```
+* Tenemos AR y MA combinados, se combinan las dos propiedades:
+
+* La combinacion de ambos individuales de FAP y FAS.
+* El decaimineto luego de la combinacion,
+
+* Cuando el decaimineto de la FAS Y FAP es lento en ambas sin lugar a dudas se trata de un ARMA. 
+* El problema es determinar el orden. 
+
+* Un componente de cada uno nos tira a rapido y lento por eso es una mezcla. Pero si ambos decaimineto lento, es definitivamente ARMA.
+
+* Con un ARMA11 capto un monton de dinamica, es de los mas usados. 
+
+
+# Procesos no estacionarios
+
+## Proceso AR(1) con coeficiente 7
+
+```{r}
+# en vez de usar 1000 datos, solo tomaremos 200
+ar1_7 <- e[1:200]
+for (i in 2:200) {
+  ar1_7[i] <- 7 * ar1_7[i-1] + e[i]
+}
+x <- ar1_7
+```
+
+```{r}
+plot(x, type="o", col="blue")
+x[1:20]
+
+```
+
+* No se entiende nada cuando graficamos la serie. 
+
+* Aumentan muchismo los valores arranque es negativo, entonces valores dan muy alto. 
+
+* Esto es un ar explosivo, se acuerda del valor anterior y se acuerda cada vez mas. 
+
+
+```{r}
+plot(zlag(x), x)
+plot(zlag(x,2), x)
+plot(zlag(x,3), x)
+plot(zlag(x,4), x)
+acf(x)
+head(acf(x, plot = F)$acf)
+```
+
+ups!
+
+Recordando el calculo manual de la FAS muestral:
+
+```{r}
+sum((embed(x, 2)[,1]-mean(x))*(embed(x, 2)[,2]-mean(x)))/ sum((x - mean(x)) ^2)  
+# Salta error como consecuecnia de que los valores se ahcen muy grandes, entonces explota
+```
+ups!
+Veamos los últimos valores de la serie:
+
+```{r}
+tail(x)
+```
+* Un AR explosivo, se va lejisimos. 
+
+## Caminata aleatoria
+
+* Que pasa si a un AR(1), le ponemos phi = 1 , violamos condicion de que sea menor que 1 en valor absoluto.
+
+Esto se llama caminata aleatoria
+
+$$X_t = X_{t-1} + e_t$$
+
+```{r}
+ca <- e
+for (i in 2:n) {
+  ca[i] <- ca[i-1] + e[i]
+}
+x <- ca
+```
+
+```{r}
+plot(x, type="l", col="blue")
+
+```
+* Es muy especial porque no es explosivo, pero es nada que ver a lo que veniamos viendo, antes podiamos ver ciertos patrones, pero no eran ditinguibles de un ruido blanco.
+
+* Aca se forman ciertas tendencias, se denomina no estocastico. Se dice que tiene mucha memoria. Al valor anterior se le suma el ruido blanco que le dice erro, y vemos que ese aumento es por que los errores fueron positivos. 
+
+* Esta es la tipica caminata aleatoria, que es el tipico ejemplo de una serie no estacionaria.
+
+
+```{r}
+plot(zlag(x), x)
+plot(zlag(x,2), x)
+plot(zlag(x,3), x)
+plot(zlag(x,4), x)
+acf(x)
+head(acf(x, plot = F)$acf)
+```
+
+* Correlacion bien marcada y va disminuyendo de a muuuuuuuuy poquito. Decaiminiento muy lento. 
+
+* Decaimiento tan lento señal serie no estacionaria.
+
+
+# Memoria larga
+
+$$X_t = 0.95 \ X_{t-1} + e_t$$
+
+```{r}
+ml <- e
+for (i in 2:n) {
+  ml[i] <- 0.95*ml[i-1] + e[i]
+}
+x <- ml
+```
+
+```{r}
+plot(x, type="o", col="blue")
+
+```
+
+```{r}
+plot(zlag(x), x)
+plot(zlag(x,2), x)
+plot(zlag(x,3), x)
+plot(zlag(x,4), x)
+acf(x)
+head(acf(x, plot = F)$acf)
+```
+* Coeficiente distinto de 1 pero memoria muy larga tambien. 
+
+# Proceso con tendencia determinística
+
+```{r}
+tiempo <- seq_along(e) # genera un conjunto de indices.
+head(tiempo)
+
+td <- 0.7*tiempo + 100*e
+plot(td)
+```
+
+* Tendencia deterministica, puntos siguen una linea con dispercion por encima y por debajo. 
+
+* Ambas son formas no estacionarias porque la media se esta moviendo.
+
+
+```{r}
+plot(resid(lm(td ~ -1 +tiempo)))
+
+```
+
+
+
+# Usando sistemas gráficos mas modernos
+
+## ggplot2
+
+```{r}
+library(ggplot2)
+library(ggthemes)
+
+DF <- data.frame(year=1801:2000, rb=e[1:200], ca=ca[1:200])
+
+plt1 <- ggplot(DF, aes(x = year, colour = "fill")) + 
+  geom_line(aes(y = rb, colour="Ruido Blanco"), size= 1) + 
+  geom_point(aes(y = rb, colour="Ruido Blanco")) +
+  geom_point(aes(y = ca, colour = "Caminata aleatoria"), size = 1) + 
+  geom_line(aes(y = ca, colour = "Caminata aleatoria")) +
+  geom_hline(yintercept = 0, colour = "darkgrey") +
+  ylab(label= "Valor") + 
+  xlab("Año") +
+  ggtitle("Ruido Blanco y Caminata Aleatoria") +
+  scale_color_manual(values = c(
+    "Ruido Blanco"=  "blue",
+    "Caminata aleatoria" = "red"), guide = guide_legend(reverse=TRUE)) +
+  labs(color = "") +
+  theme_economist()
+plt1
+
+```
+
+
+## Un poco de interactividad
+
+```{r}
+library(plotly)
+ggplotly(plt1)
+```
+
+* ggplotly, tremenda libreria para ver los graficos, los hace totalmente interactivos. 
+
+# Identificación
+
+```{r}
+library(readr)
+simulados_arima <- read_csv("simulados_arima.csv")
+View(simulados_arima)
+```
+
+```{r}
+head(simulados_arima)
+```
+
+Hay 5 series. 
+
+#sim1
+
+```{r}
+sim1 = ts(simulados_arima[,1])
+plot(ts(sim1))
+```
+
+```{r}
+plot(zlag(sim1),  sim1)
+plot(zlag(sim1, 2),  sim1)
+plot(zlag(sim1, 3),  sim1)
+plot(zlag(sim1, 4),  sim1)
+
+```
+
+```{r}
+acf(sim1)
+pacf(sim1)
+```
+
+# sim2
+
+```{r}
+sim2 = ts(simulados_arima[,2])
+
+plot(ts(sim2))
+```
+
+```{r}
+plot(zlag(sim2),  sim2)
+plot(zlag(sim2, 2),  sim2)
+plot(zlag(sim2, 3),  sim2)
+plot(zlag(sim2, 4),  sim2)
+
+```
+
+```{r}
+acf(sim2)
+pacf(sim2)
+```

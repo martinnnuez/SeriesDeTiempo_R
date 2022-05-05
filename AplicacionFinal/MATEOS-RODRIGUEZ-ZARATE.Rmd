@@ -1,0 +1,729 @@
+---
+title: "Examen Final Series de Tiempo"
+author: "MATEOS - RODRIGUEZ - ZARATE"
+date: "14-12-2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tseries)
+library(aTSA)
+```
+
+# **EJERCICIO 1**
+
+```{r}
+fallos <- c(718, 659, 831, 645, 777, 637, 983, 894, 994, 1079,
+            1604, 681, 559, 606, 967, 900, 940, 876, 724, 1044, 964, 975,
+            969, 839, 750, 700, 752, 638, 976, 660, 1169, 866, 940, 1084,
+            653, 1150, 502, 828, 750, 911, 918, 1125, 1123, 1075, 1132, 1058,
+            1083, 1093, 763, 905, 1066, 841, 1085, 1080, 1180, 1382, 1170,
+            1399, 1023, 1402, 523, 1224, 1259, 1009, 1340, 1524, 1170, 1751,
+            1094, 1421, 1664, 1973, 962, 898, 1016, 1025, 1428, 1145, 1431,
+            1202, 1903, 1206, 1433, 1805, 635, 836, 912, 1085, 938, 1360,
+            1396, 1340, 1715, 1591, 998,921)
+fallos <- ts(data=fallos,start=1990,frequency = 12)
+fallos
+```
+
+## a) Grafique la serie y sus funciones de autocorrelacion simple y parcial. Analice estos graficos.
+
+```{r}
+plot(fallos)
+acf(fallos)
+pacf(fallos)
+mean(fallos)
+```
+
+A partir del grafico de la serie podemos ver una tendencia creciente en la media a lo largo del tiempo. En cuanto a la varianza podemos ver que parece variar a lo largo del tiempo. Podemos concluir que la serie parece ser no estacionaria ni en media y ni en varianza.
+
+Podemos apreciar que la funcion de autocorrelacion simple se atenua lentamente, ademas podemos ver como los valores de los coeficientes aumentan al acercarse al lag 12 como consecuencia de una raiz no estacional. Por otra parte, la funcion de autocorrelacion parcial cae abruptamente en los lag 1 y 2 y tambien vuelve a aumentar para el lag 12.
+
+## b) Proponga un modelo ARIMA que ajuste razonablemente el conjunto de datos. Para ello:
+
+### b1) Analice la necesidad de transformar la serie.
+
+```{r}
+medias=0
+varianzas=0
+for (i in 1:14) {
+medias[i]=mean(fallos[((i-1)*6):((i)*6)])
+varianzas[i]=var(fallos[((i-1)*6):((i)*6)])
+}
+plot(x=medias,y=varianzas)
+
+fallos1=log(fallos)
+for (i in 1:14) {
+  medias[i]=mean(fallos1[((i-1)*6):((i)*6)])
+  varianzas[i]=var(fallos1[((i-1)*6):((i)*6)])
+}
+plot(x=medias,y=varianzas)
+```
+
+Se opta por realizar una transformacion logaritmica para eliminar la heterogeneidad de varianzas.
+
+### b2) Estudie la presencia de raiz unitaria (Test de Dickey-Fruller).
+
+Procedemos a aplicar el test de Dicket Fuller, que es una prueba de raiz unitaria:
+
+* Ho: Hay raíz unitaria. (Serie no estacionaria)
+* H1: No hay raíz unitaria. (Serie estacionaria)
+
+```{r}
+tseries::adf.test(fallos1) #según el test no tiene raiz unitaria
+```
+La muestra reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5%, por lo tanto se acepta que no hay raiz unitaria para ninguna de las diferenciaciones no estacionarias propuestas. 
+
+
+### b3) Estudie la necesidad de diferenciar convenientemente la serie.
+
+```{r}
+plot(fallos1)
+acf(fallos1)
+pacf(fallos1)
+```
+
+El grafico de la nueva serie sigue mostrando una tendencia creciente en la media a lo largo del tiempo por lo que se sostiene que la diferenciacion no estacional podria ser necesaria. Por este motivo se procedera a comparar distintos modelos y determinar si fuese necesaria dicha diferenciacion. 
+
+```{r}
+mod0 <- arima(fallos1,order=c(0,0,0),seasonal=list(order=c(1,0,0),period=12))
+plot(mod0$residuals)
+acf(mod0$residuals)
+pacf(mod0$residuals)
+```
+
+```{r}
+mod1 <- arima(fallos1,order=c(0,0,1),seasonal=list(order=c(1,0,0),period=12))
+plot(mod1$residuals)
+acf(mod1$residuals)
+pacf(mod1$residuals)
+```
+
+```{r}
+mod2 <- arima(fallos1,order=c(1,0,1),seasonal=list(order=c(1,0,0),period=12))
+plot(mod2$residuals)
+acf(mod2$residuals)
+pacf(mod2$residuals)
+```
+
+```{r}
+mod3 <- arima(fallos1,order=c(0,1,1),seasonal=list(order=c(1,0,0),period=12))
+plot(mod3$residuals)
+acf(mod3$residuals)
+pacf(mod3$residuals)
+```
+
+```{r}
+AIC(mod0,mod1,mod2,mod3)
+BIC(mod0,mod1,mod2,mod3)
+MuMIn::AICc(mod0,mod1,mod2,mod3)
+```
+A partir de los criterios de informacion calculados podemos concluir que el mejor modelo, es decir el que menores valores de AIC, BIC y AICc presenta es el mod3, de esta forma podemos concluir que es muy mala la sugerencia del test de Dicket Fuller de no diferenciar, ya que de no ser por nuestra insistencia nos hubiese llevado a conclusiones equivocadas. Ademas de ser el mod3 el que menores valores de AIC, BIC y AICc registra es mas parsimonioso, por lo que deberias ser el elegido. 
+
+Como consecuenica de la tendencia creciente de la media en la serie justificamos la diferenciacion no estacional de la misma. 
+
+A partir de los grafico de los residuos de los distintos modelos propuestos, podemos ver que el mejor ajuste es generado por el mod3, modelo en el cual se incluyo una diferencia no estacional. Los coeficientes estimados tanto en la funcion de autocorrelacion simple como en la parcial quedan contenidos dentro de las bandas de tolerancia, motivo por el cual son no singificativamente distintos de cero. Razon por la cual creemos que los residuos son un ruido blanco y que el modelo propuesto ajusta bien a los datos.
+
+En conlusion el mejor modelo ajustado es el mod3, esto se encuentra avalado tanto por los criterios de comparacion calculados para los cuales obtiene los minimos valores, asi como tambien para los graficos de residuos. 
+
+### b4) Sobre el modelo propuesto, realice el analisis de los residuos. (Tests: Box, Shapiro y Jarque Bera, etc.).
+```{r}
+Box.test(mod3$residuals, lag = 10, type = "Ljung-Box", fitdf = 2)
+tsdiag(mod3)
+arch.test(mod3, output = TRUE)
+shapiro.test(mod3$residuals)
+```
+La prueba de **Ljung-Box** se puede definir de la siguiente manera:
+
+ * H0: Los datos se distribuyen de forma independiente (es decir, las correlaciones en la población de la que se toma la muestra son 0, de modo que cualquier correlación observada en los datos es el resultado de la aleatoriedad del proceso de muestreo).
+
+ * Ha: Los datos no se distribuyen de forma independiente.
+
+El p valor arrojado por la prueba de Ljung-Box de 0.09936, sugiere que la muesta no reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5% por lo que se acepta que no hay autocorrelacion existente. 
+
+Ademas el grafico muestra que niguno de los p valores para la prueba de Ljung-Box es significativo. 
+
+La prueba de **Pormanteau** es similar a la de Ljun-Box pero considerando los residuos al cuadrado, en otras palabras se podria definir como:
+ 
+ * Ho: Los coeficientes de correlacion de los residuos cuadrados es igual a 0.
+ 
+ * H1: Al menos uno de los coeficientes de correlacion de los residuos cuadrados es distinto de 0. 
+
+Por otra parte, el **Lagrange-Multiplier test** (ARCH LM), plantea una regresion entre los residuos cuadrados y el retardo de los residuos cuadrados. De esta forma verifica si hay autocorrelacion planteando una regresion. 
+
+El **Portmanteau-Q test**, arroja p valores que demuestran que la muestra no reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5% por lo que se acepta que no hay autocorrelacion existente entre los residuos cuadrados.
+
+Por otra parte el **Lagrange-Multiplier test**, arroja p valores que demuestran que la muesta no reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5%, por lo que se acepta que no hay autocorrelacion existente entre los residuos cuadrados. Hay un unico p valor que nos hace dudar, que sugeriria que potencialmente hay heterocedasticidad
+
+Los graficos de la funcion de autocorrelacion simple y parcial de los residuos del modelo muestran que todos los coeficientes estimados quedan contenidos dentro de las bandas de tolerancia, motivo por el cual son no singificativamente distintos de cero. Razon por la cual creemos que los residuos son un ruido blanco, que el modelo propuesto ajusta bien a los datos y que no existe heterocedasticidad. 
+
+El test de normalidad de **Shapiro-Wilk** plantea las hipotesis:
+* Ho: Los datos siguen una distribucion normal.
+* H1: Los datos no siguen una distribucion normal.
+
+Finalmente la prueba de Shapiro-Wilk arroja un p valor de 0.1865, el cual sugiere que la muesta no reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5% por lo que se acepta que los residuos provienen de una distribucion normal. 
+
+\newpage
+
+# **EJERCICIO 2**
+
+## a) Simule 80 realizaciones del proceso Xt-10Xt-1-0.2Xt-2=Et, donde Et es un proceso de ruido blanco con varianza igual a 16.
+
+```{r}
+# arima.sim(n=80,model=list(ar=(c(10,0.2))))
+E <- rnorm(80,0,4)
+X=0
+X[1]=E[1]
+X[2]=10*X[1]+E[2]
+for (i in 3:80) {
+  X[i]=10*X[i-1]+0.2*X[i-2]+E[i]
+}
+```
+
+## b) Grafique la serie obtenida. Grafique tambien los primeros 20 valores de las funciones de autocorrelacion muestral simple y parcial de la serie simulada.
+
+```{r}
+plot(X)
+acf(X,lag.max = 20)
+pacf(X,lag.max = 20)
+
+# arima.sim(n=80,list(ar=c(10,0.2)),sd=4)
+polyroot(c(1,-10,-0.2))
+```
+Podemos ver que el grafico de la serie de tiempo muestra un comportamiento explosivo, comunmente subyacente en procesos no estacionarios. 
+
+Los graficos de las funciones de autocorrelacion simple y parcial permiten ver que los coeficientes se encuentran dentro de las barras de tolerancia por lo que son no significativamente distintos de cero, por lo tanto recordarian a un ruido blanco. 
+
+
+## c) ¿El proceso es estacionario? Justifique su respuesta. Explique.
+
+No, porque una de las raices de (1-10 * B-0,2 * B^2), la funcion phi(B) se encuentra por dentro del círculo unitario complejo. 
+
+## d) Proponga un proceso AR(2) estacionario y justifique por que el proceso propuesto es estacionario.
+
+```{r}
+# AR(2) <- X_t=0,1*X_t-1+0,2*X_t-2+E_t 
+polyroot(c(1, -0.1 , -0.2))
+```
+
+Si es estacionario porque las raices de (1-0,1 * B-0,2 * B^2), la funcion phi(B) se encuentran por fuera del círculo unitario complejo.
+
+## e) Para el proceso propuesto, calcule y grafique en R los 40 primeros coeficientes del desarrollo en serie de Taylor correspondiente a la expresion del proceso como promedio movil de orden infinito.
+```{r}
+ARMAtoMA(ar=c(0.1,0.2),lag.max = 40)
+plot(ARMAtoMA(ar=c(0.1,0.2),lag.max = 40))
+points(x=c(1,2,3),y=c(0.1,0.21,0.041),col='red')
+```
+
+Verificamos que los tres coeficientes calculados a mano coinciden con los calculados en R.
+
+\newpage
+
+## f ) A partir del proceso propuesto, genere una serie de tiempo de longitud 80, grafique la serie y los primeros 20 valores de las funciones de autocorrelacion muestral simple y parcial de la serie simulada. Compare con b).
+```{r}
+AR2 <- arima.sim(n=80,model=list(ar=c(0.1,0.2)))
+plot(AR2)
+acf(AR2,lag.max = 20)
+pacf(AR2,lag.max = 20)
+acf(AR2,lag.max = 20,plot = F)
+```
+Los graficos de las funciones de autocorrelacion simple y parcial, permiten observar un comportamiento mas heterogeneo, mostrando cierta relacion entre los valores de la serie en los distintos lag de tiempo.
+
+Mientras que la serie ajustada en b) no muestra ningun tipo de relacion entre los valores registrados a lo largo de la serie. 
+
+En el proceso ajustado en b) los valores son de magnitudes tan diferentes que no se encuentra correlacion alguna, mientras que los valores ajustados en f) tienen una desviacion constante por ser una serie estacionaria, mostrando cierta correlacion entre ellos.
+
+## g)
+
+\newpage
+
+# **EJERCICO 3**
+
+## a) Simule 500 realizaciones del proces Xt+0.4Et-1=Et, donde Et es un proceso de ruido blanco con varianza igual a 4.
+
+```{r}
+MA1 <- arima.sim(n=500,model = list(ma=-0.4),sd=2)
+
+```
+
+## b) ¿Es el proceso simulado en a) estacionario? ¿Es invertible? Justifique sus respuestas.
+
+Si, el proceso simulado en a) es estacionario porque todo proceso MA(q) es estacionario. 
+
+```{r}
+polyroot(c(1, -0.2))
+```
+
+Es invertible porque la raiz del polinomio tita(B) esta fuera del círculo unitario complejo o, lo que es lo mismo, el valor absoluto del coeficiente tita es menor a uno.
+
+## c) Calcule los primeros 10 valores de las funciones de autocorrelacion simple y parcial muestrales de la serie simulada. Compare estos valores con los de las respectivas funciones teoricas del proceso.
+```{r}
+acf(MA1,lag.max = 10,plot = F)
+pacf(MA1,lag.max = 10,plot = F)
+```
+Los coeficientes calculados a mano y con el R son similares. 
+
+### Comparamos los valores de los coeficientes de la funcion de autocorrelacion parcial calculados a mano con los obtenidos por el modelo.
+
+```{r}
+ti <- -0.4
+pi <- 0
+pi[1]=(-1)^(2)*ti^1/(1+ti^2)
+pi[2]=(-1)^(3)*ti^2/(1+ti^2+ti^4)
+pi[3]=(-1)^(4)*ti^3/(1+ti^2+ti^4+ti^6)
+pi[4]=(-1)^(5)*ti^4/(1+ti^2+ti^4+ti^6+ti^8)
+pi[5]=(-1)^(6)*ti^5/(1+ti^2+ti^4+ti^6+ti^8+ti^10)
+pi[6]=(-1)^(7)*ti^6/(1+ti^2+ti^4+ti^6+ti^8+ti^10+ti^12)
+pi[7]=(-1)^(8)*ti^7/(1+ti^2+ti^4+ti^6+ti^8+ti^10+ti^12+ti^14)
+pi[8]=(-1)^(9)*ti^8/(1+ti^2+ti^4+ti^6+ti^8+ti^10+ti^12+ti^14+ti^16)
+pi[9]=(-1)^(10)*ti^9/(1+ti^2+ti^4+ti^6+ti^8+ti^10+ti^12+ti^14+ti^16+ti^18)
+pi[10]=(-1)^(11)*ti^10/(1+ti^2+ti^4+ti^6+ti^8+ti^10+ti^12+ti^14+ti^16+ti^18+ti^20)
+
+
+pacfMA1 <- pacf(MA1,lag.max = 10,plot = F)
+DT::datatable(round(cbind(pi,pacfMA1$acf),6))
+```
+
+\newpage
+
+## **EJERCICIO 4**
+
+### Considere el proceso X definido por Xt=0.2Xt-1-0.3Xt-2+Et, donde Et es un proceso de ruido blanco con distribucion normal con media 0 y varianza 4.
+
+## a) Genere 100 realizaciones del proceso X.
+
+```{r}
+AR2 <- arima.sim(n=100,model = list(ar=c(0.2,-0.3)),sd=2)
+```
+
+## b) A partir de la serie generada en a), estime por minimos cuadrados los parametros del modelo. Compare con los verdaderos valores de los parametros.
+```{r}
+arima(AR2,c(2,0,0),method = "CSS")#Usando la función ARIMA
+
+# Calculo manual
+covAR2 <- acf(AR2,type='covariance',plot=F)
+gamma <- matrix(c(covAR2$acf[1],covAR2$acf[2],covAR2$acf[2],covAR2$acf[1]),nrow = 2)
+estAR2<- solve(gamma)%*%c(covAR2$acf[2],covAR2$acf[3])
+
+DT::datatable(round(cbind(c(0.2,-0.3),estAR2),4))
+```
+Los valores obtenidos por minimos cuadrados son similares a los teoricos. 
+
+## c) Genere 10 observaciones de un ruido blanco S, con distribucionn normal, con media cero y varianza 64: S1,S2,..., S10.
+```{r}
+Ruido <- rnorm(10,0,8)
+```
+
+## d) Seleccione al azar, 10 observaciones xi1,xi2,...,xi10 de la serie generada en a) y reemplacelas en por xi1+ S1, xi2+S2, ..., xi10+S10, formando las i una nueva serie “contaminada” de 100 observaciones.
+```{r}
+vector <- sample.int(100, 10)
+AR2cont <- AR2
+for (i in 1:10) {
+AR2cont[vector[i]]  <- AR2[vector[i]]+Ruido[1]
+}
+```
+
+## e) Reestime por minimos cuadrados los parametros del modelo. Compare con b) y con los verdaderos valores de los parametros.
+```{r}
+arima(AR2cont,c(2,0,0),method = "CSS")
+
+# 'A mano'
+covAR2cont <- acf(AR2cont,type='covariance',plot=F)
+gammacont <- matrix(c(covAR2cont$acf[1],covAR2cont$acf[2],covAR2cont$acf[2],covAR2cont$acf[1]),nrow = 2)
+estAR2cont<- solve(gamma)%*%c(covAR2cont$acf[2],covAR2cont$acf[3])
+# Comparamos los valores dados y los calculados a mano
+DT::datatable(round(cbind(c(0.2,-0.3),estAR2cont),4))
+```
+Los valores obtenidos por minimos cuadrados en la serie contaminada, se encuentran mas distanciados de los teoricos con respecto a la serie no contaminada. 
+
+
+\newpage
+
+# **EJERCICIO 6**
+
+# **1)** Cargo la base de datos ARIMA
+
+```{r message=FALSE, warning=FALSE}
+library(readr)
+arima <- read_csv("arima2.csv")
+```
+
+# a) Graficamos la serie:
+
+```{r}
+plot(arima$x, col = "blue", ylab = "ARIMA", 
+      main = "Serie temporal", xlab = "Año", type ="o", pch = 20,
+      panel.first = grid (),  xaxt = "n")
+mean(arima$x)
+```
+A partir del grafico podemos establecer que la serie muestra una tendencia relativamente estable centrada en -4.09. En cuanto a la varianza podemos ver que tambien se mantiene relativamente constante a lo largo del tiempo. Puede verse una componente ciclica de picos seguidos por baches, pero esta es leve. 
+
+Podemos concluir que la serie parece ser estacionaria en media y varianza. Por este motivo se opta por no plantear ninguna transformacion. 
+
+Procedemos a aplicar el test de Dicket Fuller, que es una prueba de raiz unitaria y en este caso busca determinar la cantidad de diferencias no estacionarias a aplicar (ADF).
+
+* Ho: Hay raíz unitaria. (Serie no estacionaria)
+* H1: No hay raíz unitaria. (Serie estacionaria)
+
+Test de Dicket Fuller aplicada a las primeras tres diferencias no estacionarias.
+
+```{r message=FALSE, warning=FALSE}
+library(tseries)
+dtasa1<-diff(arima$x,lag=1,differences=1)
+dtasa2<-diff(arima$x,lag=1,differences=2)
+dtasa3<-diff(arima$x,lag=1,differences=3)
+adf.test(dtasa1) 
+adf.test(dtasa2)
+adf.test(dtasa3)
+```
+La muestra reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5%, por lo tanto se acepta que no hay raiz unitaria para ninguna de las diferenciaciones no estacionarias propuestas. 
+
+## b) Grafico la funcion de autocorrelacion simple y funcion de autocorrelacion parcial:
+
+```{r}
+acf(arima$x)
+pacf(arima$x) 
+```
+Podemos apreciar que la funcion de autocorrelacion simple se atenua muy lentamente. Por otra parte, la funcion de autocorrelacion parcial cae abruptamente luego del lag 2. 
+
+La caida suave de la funcion de autocorrelacion simple y abrupta de la funcion de autocorrelacion parcial, indican que posiblemente podriamos encontrarnos frente a un modelo autorregresivo..
+
+## Propuestas:
+
+Como primer modelo proponemos un AR(1):
+```{r}
+fit1 <- arima(arima$x, order=c(p=1, d=0, q=0), include.mean = F)
+res1 <- fit1$residuals
+acf(res1)
+pacf(res1)
+```
+
+Podemos apreciar que la funcion de autocorrelacion simple sigue atenuandose lentamente con coeficientes significativos y ademas la funcion de autocorrelacion parcial cae abruptamente luego del primer lag. 
+
+Por este motivo procederemos a ajustar un AR(2) y analizaremos los resultados.
+
+```{r}
+fit2 <- arima(arima$x, order=c(p=2, d=0, q=0), include.mean = F)
+res2 <- fit2$residuals
+acf(res2)
+pacf(res2)
+```
+
+A partir del grafico de los residuos podemos ver que todos los coeficientes estimados tanto en la funcion de autocorrelacion simple como en la parcial quedan contenidos dentro de las bandas de tolerancia, motivo por el cual son no singificativamente distintos de cero. Razon por la cual creemos que los residuos son un ruido blanco y que el modelo propuesto ajusta bien a los datos. 
+
+## c) Propuesta alternativa:
+
+A pesar de las sugerencias de la prueba de Dicket Fuller de no incluir una diferenciacion no estacional, podemos ver a partir del primer grafico de la serie una leve tendencia negativa, que optamos por considerar insignifiante desde un comienzo. Por lo tanto como modelo alternativo propondremos un AR incluyendo en este caso una diferencia no estacionaria de orden 1. 
+
+```{r}
+fit3 <- arima(arima$x, order=c(p=0, d=1, q=0), include.mean = F)
+acf(fit3$residuals)
+pacf(fit3$residuals)
+```
+El grafico de la funcion de autocorrelacion simple sugiere un decaimineto suave a cero, mientras que la funcion de autocorrelacion parcial, muestra un coeficiente notablemente significativo en el lag 1, esto insinua que estamos en precencia de un modelo autorregresivo de orden 1. 
+
+```{r}
+fit4 <- arima(arima$x, order=c(p=1, d=1, q=0), include.mean = F)
+acf(fit4$residuals)
+pacf(fit4$residuals)
+```
+
+A partir del grafico de los residuos podemos ver que todos los coeficientes estimados tanto en la funcion de autocorrelacion simple como en la parcial quedan contenidos dentro de las bandas de tolerancia, motivo por el cual son no singificativamente distintos de cero. Razon por la cual creemos que los residuos son un ruido blanco y que el modelo propuesto ajusta bien a los datos. 
+
+## d) Modelos propuestos:
+
+```{r warning=FALSE}
+modelo1 <- arima(arima$x, order=c(p=2, d=0, q=0), include.mean = F)
+modelo2 <- arima(arima$x, order=c(p=1, d=1, q=0), include.mean = F)
+
+AIC(modelo1,modelo2)
+BIC(modelo1,modelo2)
+MuMIn::AICc(modelo1,modelo2)
+```
+A partir de los criterios de informacion calculados podemos concluir que el mejor modelo, es decir el que menores valores de AIC, BIC y AICc presenta es el modelo2, de esta forma podemos concluir que es muy mala la sugerencia del test de Dicket Fuller de no diferenciar, ya que de no ser por nuestra insistencia nos hubiese llevado a conclusiones equivocadas. Ademas de ser el modelo 2 el que menores valores de AIC, BIC y AICc registra, es mas parsimonioso, por lo que deberia ser el elegido. 
+
+
+## e) Analisis de los residuos:
+### Autocorrelación: Prueba de Ljung-Box
+
+La prueba de Ljung-Box se puede definir de la siguiente manera:
+
+ * H0: Los datos se distribuyen de forma independiente (es decir, las correlaciones en la población de la que se toma la muestra son 0, de modo que cualquier correlación observada en los datos es el resultado de la aleatoriedad del proceso de muestreo).
+
+ * Ha: Los datos no se distribuyen de forma independiente.
+
+```{r}
+Box.test(modelo2$residuals, lag = 10, type = "Ljung-Box", fitdf = 2)
+tsdiag(modelo2)
+```
+
+El p valor de 0.2289, sugiere que la muesta no reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5% por lo que se acepta que no hay autocorrelacion existente. 
+
+Ademas el grafico muestra que niguno de los p valores para la prueba es significativo. 
+
+### Heterocedasticidad: test de Pormanteau y Lagrange-Multiplier
+
+La prueba de Pormanteau es similar a la de Ljun-Box pero considerando los residuos al cuadrado, en otras palabras se podria definir como:
+ 
+ * Ho: Los coeficientes de correlacion de los residuos cuadrados es igual a 0.
+ 
+ * H1: Al menos uno de los coeficientes de correlacion de los residuos cuadrados es distinto de 0. 
+
+Por otra parte, el Lagrange-Multiplier test (ARCH LM), plantea una regresion entre los residuos cuadrados y el retardo de los residuos cuadrados. De esta forma verifica si hay autocorrelacion planteando una regresion. 
+
+```{r message=FALSE, warning=FALSE}
+library(aTSA)
+arch.test(modelo2, output = TRUE)
+
+#correlogramas de los cuadrados de los residuos
+res2<-modelo2$residuals
+res2_cuadrado = res2^2 
+acf(res2_cuadrado)
+pacf(res2_cuadrado)
+```
+
+El Portmanteau-Q test, arroja p valores que demuestran que la muestra no reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5% por lo que se acepta que no hay autocorrelacion existente entre los residuos cuadrados.
+
+Por otra parte el Lagrange-Multiplier test, arroja p valores que demuestran que la muesta reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5%, sugiriendo autocorrelacion existente entre los residuos cuadrados. Esto es sinonimo a decir que potencialmente hay heterocedasticidad. A partir de los graficos podemos ver que la heterocedasticidad es singificativa solo en los primeros ordenes y que luego se vuevle no significativa. 
+
+Los graficos de la funcion de autocorrelacion simple y parcial de los residuos del modelo muestran que todos los coeficientes estimados quedan contenidos dentro de las bandas de tolerancia, motivo por el cual son no singificativamente distintos de cero. Razon por la cual creemos que los residuos son un ruido blanco, que el modelo propuesto ajusta bien a los datos y que no existe heterocedasticidad. 
+
+
+## Normalidad
+Procedemos a graficar un histograma, relizar el test de normalidad de Shapiro-Wilk y el QQplot.
+El test de normalidad de Shapiro-Wilk plantea las hipotesis:
+* Ho: Los datos siguen una distribucion normal.
+* H1: Los datos no siguen una distribucion normal.
+
+```{r}
+hist(modelo2$residuals)
+shapiro.test(modelo2$residuals)
+qqnorm(modelo2$residuals)
+qqline(modelo2$residuals)
+```
+
+El histograma muestra una tendencia de la distirbucion de los datos a la normalidad, que la prueba de Shapiro-Wilk sostiene, esta prueba arroja un p valor de 0.2015 lo cual sugiere que la muesta no reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5% por lo que se acepta que los residuos se distibuyen normalmente.
+El QQplot permite ver que en las colas hay pequeños desvios de la normalidad, pero que son una pequeña proporcion de los datos que no afecta la normalidad general de los residuos. 
+
+Como conclusion final quedaron algunas dudas con el Lagrange-Multiplier test, pero que con las otras herramientas disponibles logramos solucionar. 
+
+## f) Pronostico:
+
+```{r}
+preds1 <-  forecast::forecast(modelo2, 15) # para prevenir error
+plot(preds1)
+
+preds2 <-  forecast::forecast(modelo2, 50)
+plot(preds2)
+
+```
+Podemos ver predicciones a distintos tiempos en el futuro, se puede ver a simple vista que las predicciones representan la tendencia general de la serie en el futuro cercano, pero que a medida que avanza en el tiempo esta tiende a volverse constante lo cual puede deberse a la falta de informacion en el futuro para realizar predicciones. 
+
+Algo interesante de destacar es como las bandas de confianza del 95%, comienzan a aumentar su amplitud a medida que nos alejamos en el tiempo y eso se debe a que a medida que avanzamos en el tiempo tenemos menos informacion disponible para realizar predicciones. 
+
+
+\newpage
+
+
+# **2)** Cargo la base de datos SARIMA
+
+```{r}
+sarima <- read_csv("sarima2.csv")
+```
+
+# a) Graficamos la serie
+
+```{r}
+plot(sarima$x, col = "blue", ylab = "SARIMA", 
+      main = "Serie temporal", xlab = "Trimeste", type ="o", pch = 20,
+      panel.first = grid (),  xaxt = "n")
+mean(sarima$x)
+```
+A partir del grafico de la serie podemos establecer que muestra una tendencia estable centrada en -0.85. En cuanto a la varianza podemos ver que se mantiene constante a lo largo del tiempo. Ademas puede verse una clara componente ciclica de picos seguidos por baches que parece ser fuerte. 
+
+Dada la componente estacional que visualizamos en la serie optamos por aplicar una pueba de Augmented Dickey-Fuller para verificar si es necesaria una diferencia estacional de orden 4 o una diferencia no estacional de primer orden.
+
+```{r}
+dtasa1<-diff(sarima$x,lag = 1,differences = 1)
+adf.test(dtasa1)
+dtasa<-diff(sarima$x,lag = 4,differences = 1)
+adf.test(dtasa)
+```
+La muestra reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5%, por lo tanto se acepta que la serie es estacionaria. 
+
+## b) Grafico la funcion de autocorrelacion simple y la funcion de autocorrelacion parcial:
+
+```{r}
+acf(sarima$x)
+pacf(arima$x)
+```
+A pesar de que el test de Dicket Fuller sugirio no realizar la diferencia estacionaria con lag 4, podemos ver que el grafico de autocorrelacion simple muestra una clara estacionalidad con este lag. Esto es asi porque los coeficientes son significativos en los multiplos del lag 4, por este motivo procederemos a diferenciar y analizar nuevamente la serie diferenciada. 
+
+Por otra parte, podemos apreciar que la funcion de autocorrelacion parcial cae abruptamente en el lag 2.
+
+ + Procederemos a diferenciar estacionalmente y volveremos a analizar. 
+ 
+```{r}
+fit1 <- arima(sarima$x, order=c(0,0,0), seasonal=c(order=c(0,1,0), period=4), method = "ML")
+```
+
+```{r}
+acf(fit1$residuals)
+pacf(fit1$residuals)
+```
+
+Estos graficos dejan mucho que desear, la raiz unitaria estacional esta claramente presente. El motivo por el cual se siguen escapando tantos coeficientes en el grafico de la funcion de autocorrelacion simple, es por que es necesaria la incorporacion de terminos al modelo en la parte estacionaria, de este modo podremos reducir el proceso a un ruido blanco.
+
+Estamos seguros que los pasados inmediatos de la serie en cada cuatrimestre ayudan a explicar el valor cuatrimestral en cada caso, por lo tanto nos inclinamos mas por los modelos autorregresivos. No sabemos cuantos son los pasados que debemos incluir para reducirlo a un ruido blanco pero probaremos hasta reducirlo.  
+
+Ademas el grafico de la funcion de autocorrelacion parcial insinua un decaimiento abrupto, lo que podria sugerir la incorporacion de terminos en la parte no estacional para el AR.
+
+
+ * Procedemos a incluir un termino autorregresivo en la parte estacional del modelo y analizaremos:
+ 
+```{r}
+fit2 <- arima(sarima$x, order=c(0,0,0), seasonal=c(order=c(1,1,0), period=4), method = "ML")
+```
+
+```{r}
+acf(fit2$residuals, lag.max=48)
+pacf(fit2$residuals, lag.max=48)
+```
+
+Podemos apreciar que ambos graficos atenuaron los valores de sus coeficientes, creemos que es el camino correcto y que incluyendo otro pasado inmediato mas en la parte estacional lograremos explicar lo que hace falta para llevar los resiudos a un ruido blanco. 
+
+ * Incluimos un coeficiente autorregresivo mas en la parte estacional del modelo:
+
+```{r}
+fit3 <- arima(sarima$x, order=c(0,0,0), seasonal=c(order=c(2,1,0), period=4), method = "ML")
+```
+Tomamos la primer difererencia simple y vemos que ocurre:
+
+```{r}
+acf(fit3$residuals, lag.max=48)
+pacf(fit3$residuals, lag.max=48)
+```
+
+A partir del grafico de los residuos del fit 3 podemos ver que para la funcion de autocorrelacion simple todos los coeficientes quedan dentro o practicamente dentro de las barras de significancia, por lo que no se distinguen de 0. Este grafico estaria insinuando que llegamos al ruido blanco. 
+
+Por otra parte la funcion de autocorrelacion parcial, muestra que la mayoria de los coeficientes tambien caen dentro de las bandas, la unica preocupacion la tenemos con el primer coeficiente en el lag 1 que podria sugerir un decaimineto abrupto y la incorporacion de un termino autorregresivo en la parte no estacionaria, pero optamos por no incluirlo aun y consideramos como un ruido blanco. Procederemos a considerar este otro modelo como alternativo.
+
+### c) Propuesta alternativa:
+
+```{r}
+fit4 <- arima(sarima$x, order=c(1,0,0), seasonal=c(order=c(2,1,0), period=4), method = "ML")
+acf(fit4$residuals, lag.max=48)
+pacf(fit4$residuals, lag.max=48)
+```
+
+```{r}
+fit5 <- arima(sarima$x, order=c(0,0,1), seasonal=c(order=c(2,1,0), period=4), method = "ML")
+acf(fit5$residuals, lag.max=48)
+pacf(fit5$residuals, lag.max=48)
+```
+
+```{r}
+fit6 <- arima(sarima$x, order=c(1,0,1), seasonal=c(order=c(2,1,0), period=4), method = "ML")
+acf(fit6$residuals, lag.max=48)
+pacf(fit6$residuals, lag.max=48)
+```
+
+A partir de los graficos de residuos podemos ver que todos los coeficientes estimados tanto en la funcion de autocorrelacion simple como en la parcial quedan contenidos dentro de las bandas de tolerancia, motivo por el cual son no singificativamente distintos de cero. Razon por la cual creemos que los residuos son un ruido blanco y que los modelos propuestos ajustan bien a los datos. 
+
+## d) Modelos propuestos:
+
+```{r}
+modelo1 <- arima(sarima$x, order=c(0,0,0), seasonal=c(order=c(2,1,0), period=4), method = "ML")
+modelo2 <- arima(sarima$x, order=c(1,0,0), seasonal=c(order=c(2,1,0), period=4), method = "ML")
+modelo3 <- arima(sarima$x, order=c(0,0,1), seasonal=c(order=c(2,1,0), period=4), method = "ML")
+modelo4 <- arima(sarima$x, order=c(1,0,1), seasonal=c(order=c(2,1,0), period=4), method = "ML")
+
+AIC(modelo1,modelo2,modelo3,modelo4)
+BIC(modelo1,modelo2,modelo3,modelo4)
+MuMIn::AICc(modelo1,modelo2,modelo3,modelo4)
+```
+A partir de los criterios de informacion calculados podemos concluir que el mejor modelo, es decir el que menores valores de AIC, BIC y AICC presenta es el modelo4, de esta forma podemos concluir nuevamente que es muy mala la sugerencia del test de Dicket Fuller que nos hubiese llevado a conclusiones equivocadas. 
+
+Por otra parte creemos que la diferencia en los grados de libertad entre ambos modelos no es relevante para descartar el modelo 4, por este motivo lo seleccionamos.  
+
+
+## e) Analisis de los residuos:
+### Autocorrelación: Prueba de Ljung-Box
+La prueba de Ljung-Box se puede definir de la siguiente manera:
+* H0: Los datos se distribuyen de forma independiente (es decir, las correlaciones en la población de la que se toma la muestra son 0, de modo que cualquier correlación observada en los datos es el resultado de la aleatoriedad del proceso de muestreo).
+* Ha: Los datos no se distribuyen de forma independiente.
+
+```{r}
+Box.test(modelo4$residuals, lag = 10, type = "Ljung-Box", fitdf = 5)
+tsdiag(modelo4)
+```
+
+El p valor de 0.4646, sugiere que la muesta no reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5% por lo que se acepta que no hay autocorrelacion existente. 
+
+Ademas el grafico muestra que niguno de los p valores para la prueba es significativo. 
+
+### Heterocedasticidad: test de Pormanteau y Lagrange-Multiplier
+La prueba de Pormanteau es similar a la de Ljun-Box pero considerando los residuos al cuadrado, en otras palabras se podria definir como:
+
+ * Ho: Los coeficientes de correlacion de los residuos cuadrados es igual a 0.
+ 
+ * H1: Al menos uno de los coeficientes de correlacion de los residuos cuadrados es distinto de 0. 
+
+Por otra parte, el Lagrange-Multiplier test (ARCH LM), plantea una regresion entre los residuos cuadrados y el retardo de los residuos cuadrados. De esta forma verifica si hay autocorrelacion planteando una regresion. 
+
+```{r message=FALSE, warning=FALSE}
+library(aTSA)
+arch.test(modelo2, output = TRUE)
+
+#correlogramas de los cuadrados de los residuos
+res2<-modelo2$residuals
+res2_cuadrado = res2^2 
+acf(res2_cuadrado)
+pacf(res2_cuadrado)
+```
+
+El Portmanteau-Q test, arroja p valores que demuestran que la muesta no reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5% por lo que se acepta que no hay autocorrelacion existente entre los residuos cuadrados.
+
+Por otra parte el Lagrange-Multiplier test, arroja p valores que demuestran que la muesta reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5%, sugiriendo autocorrelacion existente entre los residuos cuadrados. Esto es sinonimo a decir que potencialmente hay heterocedasticidad. A partir de los graficos podemos ver que la heterocedasticidad es singificativa solo en los primeros ordenes y que luego se vuevle no significativa. 
+
+Los graficos de la funcion de autocorrelacion simple y parcial de los residuos del modelo muestran que todos los coeficientes estimados quedan contenidos dentro de las bandas de tolerancia, motivo por el cual son no singificativamente distintos de cero. Razon por la cual creemos que los residuos son un ruido blanco, que el modelo propuesto ajusta bien a los datos y que no existe heterocedasticidad. 
+
+## Normalidad
+Procedemos a graficar un histograma, relizar el test de normalidad de Shapiro-Wilk y el QQplot.
+El test de normalidad de Shapiro-Wilk plantea las hipotesis:
+* Ho: Los datos siguen una distribucion normal.
+* H1: Los datos no siguen una distribucion normal.
+
+```{r}
+hist(modelo2$residuals)
+shapiro.test(modelo2$residuals)
+qqnorm(modelo2$residuals)
+qqline(modelo2$residuals)
+```
+
+El histograma muestra una tendencia de la distirbucion a la normalidad, que la prueba de Shapiro-Wilk sostiene al limite, esta prueba arroja un p valor de 0.05663 lo cual sugiere que la muesta no reune evidencias suficientes para rechazar la hipotesis nula a un nivel de significancia del 5% por lo que se acepta que los residuos se distibuyen normalmente, sostenemos que al limite de rechazar la normalidad.
+El QQplot permite ver que en las colas es donde existen los desvios de la normalidad que estarian generando que la prueba de Shapiro-Wilk obtenga este resultado limite, pero al ser una pequeña proporcion de los datos tomamos como que en terminos generales los residuos se distribuyen normalmente. 
+
+Como conclusion final quedaron algunas dudas con el Lagrange-Multiplier test, pero que con las otras herramientas disponibles logramos solucionar. 
+
+## f) Pronostico:
+
+```{r}
+preds1 <-  forecast::forecast(modelo4, 15) # para prevenir error
+plot(preds1)
+
+preds2 <-  forecast::forecast(modelo4, 50)
+plot(preds2)
+
+```
+Podemos ver predicciones a distintos tiempos en el furuto, se puede ver que a simple vista la prediccion representa la tendencia general de la serie, lo que nos tranquiliza sobre que el modelo propuesto es adecuado, ya que logra captar mucha de la informacion disponible. 
+
+Algo interesante de destacar es como las bandas de confianza del 95%, comienzan a aumentar su amplitud a medida que nos alejamos en el tiempo y eso se debe a que a medida que avanzamos en el tiempo tenemos menos informacion disponible. 
+ 
+\newpage

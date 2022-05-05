@@ -1,0 +1,58 @@
+---
+title: "Box & Jenkins"
+author: "Sergio Martín Buzzi"
+date: "11/16/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Etapas del procedimiento práctico
+
+## 1) Transformación
+
+En esta etapa se inspecciona la serie para determinar si es necesario realizar alguna trasformación para lograr estacionariedad en media y en varianza.
+
+* Si se nota que no es estacionaria en varianza se intenta tomando logaritmo natural u otra variante de las transformaciones de Box y Cox.
+
+* Si es no estacionaria en media por lo general se aplican tantas diferencias como sean necesarias, aunque en algunos casos basta con remover una tendencia determinística haciendo una regresión de la serie contra el tiempo y trabajando con los residuos de dicha regresión.
+
+## 2) Identificación
+
+En esta etapa se busca determinar los órdenes p y q. 
+
+* Las herramientas principales son la FAS y la FAP muestrales.
+
+* Se usa el Principio de Parsimonia (a similar poder explicativo se prefieren los modelos más simples).
+
+
+## 3) Estimación
+
+* Se obtienen las estimaciones de los coeficientes.
+
+* Luego de estimar el modelo se usan la FAS y la FAP de los residuos para ver si hay que agregar mas componentes AR y/o MA.
+
+* Además se cuenta con los criterios de información, los cuales sirven para comparar modelos.
+
+* Notar que los dos incisos anteriores implican un retorno a la etapa de identificación.
+
+* Se trata de un procedimiento secuencial, se van añadiendo términos intentando llegar a residuos sin autocorrelación.
+
+## 4) Análisis diagnóstico de los residuos
+
+Se verifica si se cunplen los supuestos sobre los residuos. En orden de importancia:
+
+* No autocorrelación. Herramientas: FAS y FAP de los residuos y Prueba de Ljung & Box.
+
+* Homocedasticidad. Herramientas: FAS y FAP de los cuadrados de los residuos y Pruebas Portmanteau y ARCH-LM.
+
+* Distribución Normal. Histograma, Normal Q-Q Plot, Prueba Shapiro-Wilks.
+
+## 5) Pronóstico
+
+Se utiliza el modelo para realizar predicciones.
+
+* También se evaluar el poder predictivo del modelo empleando una parte de los datos para estimar los coeficientes (conjunto de entrenamiento) y la otra para calcular métricas (conjunto de validación). 
+

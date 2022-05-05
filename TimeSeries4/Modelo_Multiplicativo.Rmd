@@ -1,0 +1,359 @@
+---
+title: "Modelo Multiplicativo"
+author: "Sergio Martín Buzzi"
+date: "17/11/2021"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(forecast)
+library(aTSA)
+base <- read.table("GDP_Arg_Bra_International_Financial_Statistics.txt", header = TRUE)
+
+```
+
+```{r}
+plot(ts(base$Argentina,frequency = 4, start = c(1995, 1) ))
+```
+
+ts(base$Argentina,frequency = 4, start = c(1995, 1) )
+definimos como serie de tiempo, con frequency 4 decimos que es una serie trimestral, 3 valores por año y comienza en el primer trimestre de 1995. Solo para que me ponga los años en el grafico. 
+
+#### 1) Transformacion
+* La variabilidad aumenta en la ultima fase de tiempo, podriamos tranformar, que transformacion hacemos?. Si la varainza es problematica generalmente hacemos log().
+
+* Ademas tomamos log pq es una serie acumulativa. La del PBI.
+
+```{r}
+# Hago la transformacion logaritmica
+x <- ts(log(base$Argentina),frequency = 4, start = c(1995, 1) )
+plot(x)
+```
+
+* Vemos que parece imperceptible, pero se logra achicar los ultimos picos, y se espera que esto impacte en los correlogramas en la parte de heterocedasticidad que quede mas lindo. 
+
+* Parecen repetirse cosas, vemos componenete estacional o ciclica.
+
+```{r}
+acf(x, lag.max=48)
+pacf(x, lag.max=48)
+```
+
+Ahora vemos los correlogramas:
+FAS: decaimiento lento/ suave.
+Hay raiz unitaria o no?
+Si es muy lento es porque hay raiz unitaria, entonces que pasa?. 
+En el lag 20 recien se mete adentro de las barrras, es medio mucho, debe haber raiz unitaria. 
+
+* Vemos decaimiento lento y piquitos cada 4, esto salta porque seguramente hay raiz unitaria estacional.
+Si fuese raiz unitaria simple, caeria mucho mas rapido. 
+
+De a 4 el decaimiento es lento y los del medio no muy alejados, raiz unitaria simple. 
+
+De a 1 decaimiento rapido exepto el 4 que es mas largo, raiz unitaria estacional. Estacional sola lento cada 4.  
+
+O pueden estar ambas. 
+
+Alguna de las dos esta presentes.
+
+Cuando todo cae lento pueden estar ambas presentes. 
+
+Simple: hoy menos el trimestre pasado.
+Estacionaria: hoy menor el mismo trimestre el año pasado. 
+
+FAP: decaimiento suave. 
+
+
+El modelo multiplicativo generaliza los modelos ARIMA por medio de la inclusión de polinomios de retardo estacionales. También se pueden tomar diferencias estacionales para eliminar las raíces unitarias esacionales. Dichos modelos se pueden representar como $arma(p,d,q)\times ARMA_s(P,D,Q)$, o bien: $$\Phi_P(L^s)\phi_p(L)(1-L^s)^D(1-L)^dx_t=\mu + \Theta_Q(L^s)\theta_q(L) \varepsilon_t$$
+
+
+
+Apliquemos Box & Jenkins
+
+```{r}
+fit1 <- arima(x, order=c(0,0,0), seasonal=c(order=c(0,1,0), period=4), method = "ML")
+fit1 
+```
+seasonal=c(order=c(0,1,0) agregamos que queremos un sarima. (P,D,Q). D=1, 1 sola diferencia estacional.
+
+period=4: periodicidad trimestral. 
+
+
+```{r}
+acf(fit1$residuals, lag.max=48)
+pacf(fit1$residuals, lag.max=48)
+```
+FAS:
+Con diferencia estacional, desaparecen picos 
+Se escapan barras consecutivas, es marcado, faltaria algo a priori. Raiz unitaria estacional estaba presente. Pero quiza podria hacer falta incluir para salvar una raiz unitaria simple. 
+
+Una alternativa es tomar también primera diferencia simple
+
+```{r}
+fit2 <- arima(x, order=c(0,1,0), seasonal=c(order=c(0,1,0), period=4), method = "ML")
+fit2
+```
+Tomamos primera difererencia simple y vemos que ocurre:
+
+```{r}
+acf(fit2$residuals, lag.max=48)
+pacf(fit2$residuals, lag.max=48)
+```
+
+FAS: 
+Se ve que podria haber un MA(1) o MA(1) estacional.
+Decaimiento abrupto en 1 y en 4.
+Si quedara una raiz unitaria, cada 4 se escaparia. 
+Es como que tenemos un retardo estacional significativo. 
+
+FAP: 
+1,4,8 caen fuera de las barras. 
+Si quiero meter un solo componente veo mas claro el abrupto en la parte del MA, no los AR, que cae mas suavemente (lento).
+
+**El siempre mete primero la parte estacional.**
+Va por la parte estacional del MA(1), componente SMA(1).
+
+# Lo incluimos
+```{r}
+fit3 <- arima(x, order=c(0,1,0), seasonal=c(order=c(0,1,1), period=4), method = "ML")
+fit3
+```
+
+```{r}
+acf(fit3$residuals, lag.max=48)
+pacf(fit3$residuals, lag.max=48)
+```
+FAS:
+El 0 no lo leemos y queda todo adentro 
+
+FAP:
+
+Llegamos a correlograma limpio, sin correlacion en los residuos!. Ya tenemos el primer candidato, pordemos seguir probando otros modelos. 
+
+### Hacemos prueba para ver como queda LJUNG-BOX:
+Como que queda autocorrelacion en los primeros ordenes. 
+Vemos correlograma, y vemos que esta al limite.
+Que pasaria si le ponemos componente AR(1). 
+
+```{r}
+tsdiag(fit3)
+```
+Los primeros no cumplen del todo.
+
+## Agregamos componente AR(1):
+
+```{r}
+fit3b <- arima(x, order=c(1,1,0), seasonal=c(order=c(0,1,1), period=4), method = "ML")
+fit3b
+```
+
+```{r}
+acf(fit3b$residuals, lag.max=48)
+pacf(fit3b$residuals, lag.max=48)
+```
+Vemos que cumple mucho mejor. 
+
+## Otra alternativa:
+Otra alternativa: no tomar diferencia simple
+Solo tomar diferencia estacional. 
+
+```{r}
+fit4 <- arima(x, order=c(0,0,0), seasonal=c(order=c(0,1,0), period=4), method = "ML")
+fit4 
+```
+
+```{r}
+acf(fit4$residuals, lag.max=48)
+pacf(fit4$residuals, lag.max=48)
+```
+FAS: interpretamos como decaimienot lento.
+FAP: 1,2 y 5, que salen fuera de las barras, una lectura podria ser lento.
+
+Cuidado no cae abrupto en el 0, cae en el 1. Por eso pongo AR(1) simple, decaimiento muy fuerte. 
+
+Estan los dos polinomios en juego, se multiplican. 
+
+Podemos ser bien conservadores y le ponemos solo el AR(1), que se ve, le ponemos 1 y vemos que pasa con las otras componentes. 
+
+Hubiese sido AR(1) ESTACIONAL si fuere 1,4 y 8.
+Aca no es asi, solo el 1 muy fuerte, entonces parece mas claro incluir el AR(1) SIMPLE. 
+
+SAR(1), AR(1) ESTACIONARIO, TAMBIEN estaria justificado. Pero menos.
+
+Ademas no tomamos diferencia simple y alguien se teine que hacer cargo de ello AR(1) SIMPLE.
+## Incluimos AR(1) SIMPLE
+```{r}
+fit5 <- arima(x, order=c(1,0,0), seasonal=c(order=c(0,1,0), period=4), method = "ML")
+fit1 
+```
+
+```{r}
+acf(fit5$residuals, lag.max=48)
+pacf(fit5$residuals, lag.max=48)
+```
+
+FAS: 
+Se clarifico mas el SMA
+
+FAP: 
+Se clarifico mas el SAR
+
+**Decaimiento ciclico cada 4 lento por eso justifico la parte estacional.**
+
+# Incluyo SAR(1)
+```{r}
+fit6 <- arima(x, order=c(1,0,0), seasonal=c(order=c(1,1,0), period=4), method = "ML")
+fit6 
+```
+
+```{r}
+acf(fit6$residuals, lag.max=48)
+pacf(fit6$residuals, lag.max=48)
+```
+
+FAS:
+Se ve mas claro MA(1). 
+El 8 indicaria SMA(1) tambien, pero es mas fuerte el MA(1).
+Si hubiese en el 8 mejor.
+
+FAP:
+Indicaria claro AR(1), pero ya esta incluido asique unico camino meter el MA(1).
+
+## Le agregamos el MA(1):
+```{r}
+fit7 <- arima(x, order=c(1,0,1), seasonal=c(order=c(1,1,0), period=4), method = "ML")
+fit7 
+```
+
+```{r}
+acf(fit7$residuals, lag.max=48)
+pacf(fit7$residuals, lag.max=48)
+```
+
+FAS:
+Se soluciona potencial SMA.
+
+FAP:
+Soluciona el AR(1).
+
+Preciera que nada que ver, pero es la interaccion de los distintos polinomios. 
+
+```{r}
+fit_auto=auto.arima(x)
+fit_auto
+
+```
+
+```{r}
+acf(fit_auto$residuals, lag.max=48)
+pacf(fit_auto$residuals, lag.max=48)
+```
+Tambien queda una masa. Muy buenos correlogramas. 
+
+```{r}
+AIC(fit1)
+AIC(fit2)
+AIC(fit3)
+AIC(fit3b)
+
+AIC(fit4)
+AIC(fit5)
+AIC(fit6)
+AIC(fit7)
+
+AIC(fit_auto)
+
+```
+* Seleccionamos el de menor AIC.
+fit3, fit7 y auto. 
+
+```{r}
+tsdiag(fit3)
+
+arch.test(fit3, output = TRUE)
+shapiro.test(fit3$residuals)
+```
+
+Hay autocorrleacion ----> lo bochamos de una.
+* Problemas de heterocedasticidad.
+Pormantieu lo bocha.
+Shapiro pasa la normalidad
+
+
+
+```{r}
+tsdiag(fit3b)
+arch.test(fit3b, output = TRUE)
+shapiro.test(fit3b$residuals)
+```
+
+Bastante bien con la autocorrelacion.
+Normalidad pasa.
+Queda con algunos temas de heterocedasticidad. 
+
+```{r}
+tsdiag(fit7)
+arch.test(fit7, output = TRUE)
+shapiro.test(fit7$residuals)
+```
+Autocorrelacion muy bien, todos valores alejados del p critico, muy lejor de la linea. 
+
+Mejora bastante heterocedasticidad, Pormateiu da okay, LM maso menos. 
+Hay una observacion en el valor cuarenta y pico que es com un outlier, que trae algunos problemas seguramente. 
+
+
+```{r}
+tsdiag(fit_auto)
+#arch.test(fit_auto, output = TRUE) da error porque necesita otro tipo de objeto
+shapiro.test(fit_auto$residuals)
+```
+Muy bien autocorrlelacion.
+Normalidad la cumple . 
+El arch.test() tira error. Operativo de R, fit auto no usa la funcion arima(), si no que usa ARIMA(), y no  arch test no funciona con este objeto.
+ La solucion seria correrlo con los mismos parametros en arima().
+
+
+Veamos si podemos reproducir la estimación:
+
+```{r}
+fit_auto_manual <- arima(x, order=c(1,0,1), seasonal=c(order=c(0,1,1), period=4), method = "ML")
+arch.test(fit_auto_manual, output = TRUE)
+```
+
+Queda bastante bien en la Pormantieu y LM bocha el primer retardo. 
+
+En general quedan mejor fit7 y fit_auto
+Ambos tienen un pequeño problema de heterocedasticidad, pero son los que mejor andubieron. 
+```{r}
+for3b <-  forecast(fit3b, 15)
+
+```
+
+```{r}
+for7 <-  forecast(fit7, 15)
+#plot(for7)
+```
+
+Vemos los pronosticos.
+
+```{r}
+for_auto <-  forecast::forecast(fit_auto, 15) # para prevenir error
+
+plot(for_auto)
+
+for_auto1 <-  forecast::forecast(fit_auto, 50)
+plot(for_auto1)
+```
+
+Mirar la amplitud de las bandas son bastante grandes, que son del 95%. 
+
+El fit 7 vende unas bandas mas chicas, captura un poco mejor la fluctuacion estacional y supuestamente logra bandas mas chicas, tiene que ver con que estaba mejor en el diagnostico. En comparacion con el fit3. 
+
+Y el fit_auto: 
+A 50 no se la juega mucho con la tendencia. De todas formas no sabemos cual es la tendencia de la serie. 
+
+Cuando le ponemos 50 no agarra la tendencia, se trata de una tendencia estocastica, no sabemos si se va para arriba ni para abajo. Mejor lance ir por el medio. 
+
+Si le agregamos componente deterministico, la tendencia. Te aseguras que la tome si la conoces. 
